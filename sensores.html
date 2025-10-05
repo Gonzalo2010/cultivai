@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CultivAI - Sensores (asociado a usuario o device)</title>
+<style>
+  body { margin:0; font-family:system-ui, sans-serif; background:#F8FFFC; min-height:100vh;
+         display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden; }
+  .status-text { position:absolute; top:8%; font-size:1.4rem; color:#4a7c59; font-weight:600; opacity:0; transition:opacity .5s; }
+  .status-text.show { opacity:1; }
+  .connection-container { position:relative; width:340px; height:320px; margin-top:70px; margin-bottom:30px; }
+  .device { position:absolute; width:80px;height:80px;border-radius:50%;background:#fff;border:3px solid #e0e7e0;
+           display:flex;align-items:center;justify-content:center;opacity:0;transform:scale(.8);transition:opacity .7s,transform .7s,border-color .7s;
+           box-shadow:0 4px 20px rgba(0,0,0,.1);flex-direction:column; }
+  .device.active { opacity:1; transform:scale(1); border-color:#4a7c59; box-shadow:0 6px 25px rgba(74,124,89,.15); }
+  .device img{ width:50px;height:50px;border-radius:50%;object-fit:cover;margin-bottom:7px; }
+  .device-label{ font-size:1rem;color:#225a35;margin:0;font-weight:500;text-align:center;letter-spacing:.02em; }
+  .device-1{ left:130px; top:0; } .device-2{ left:0; top:210px; } .device-3{ right:0; top:210px; }
+  .svg-lines{ position:absolute; left:0; top:0; width:340px; height:320px; pointer-events:none; z-index:0; }
+  .sensor-line{ stroke:#4a7c59; stroke-width:4; stroke-dasharray:1000; stroke-dashoffset:1000; opacity:.1; transition:stroke-dashoffset 1.2s,opacity .7s; }
+  .sensor-line.show{ stroke-dashoffset:0; opacity:1; }
+  .continue-btn { margin-top:60px; padding:15px 40px; background:#4a7c59; color:white; border:none; border-radius:30px;
+                  font-size:1.05rem;font-weight:600;cursor:pointer; opacity:0; transform:translateY(20px);
+                  transition:all .7s; box-shadow:0 4px 20px rgba(74,124,89,.17); }
+  .continue-btn.show{ opacity:1; transform:translateY(0); } .continue-btn:hover{ background:#326c44; }
+  .mini-note { margin-top:12px; font-size:.95rem; color:#6b7f6b; min-height:1.2em; text-align:center; padding:0 12px; }
+  .user-info { margin-top:8px; font-size:.85rem; color:#445b45; opacity:.9; }
+</style>
+</head>
+<body>
+  <div class="status-text" id="statusText">Comprobando sesión...</div>
+
+  <div class="connection-container" aria-hidden="false">
+    <svg class="svg-lines" width="340" height="320" aria-hidden="true">
+      <line id="line12" class="sensor-line" x1="170" y1="40" x2="40" y2="250" />
+      <line id="line13" class="sensor-line" x1="170" y1="40" x2="300" y2="250" />
+      <line id="line23" class="sensor-line" x1="40" y1="250" x2="300" y2="250" />
+    </svg>
+
+    <div class="device device-1" id="device1" role="img" aria-label="Sensor 1">
+      <img src="sensor1.png" alt="Sensor 1">
+    </div>
+
+    <div class="device device-2" id="device2" role="img" aria-label="Sensor 2">
+      <img src="sensor2.png" alt="Sensor 2">
+    </div>
+
+    <div class="device device-3" id="device3" role="img" aria-label="Sensor 3">
+      <img src="sensor3.png" alt="Sensor 3">
+    </div>
+  </div>
+
+  <button class="continue-btn" id="continueBtn">Continuar</button>
+  <div class="mini-note" id="miniNote">Esperando conexión...</div>
+  <div class="user-info" id="userInfo" aria-live="polite"></div>
+
+  <!-- Formulario con campos ocultos para datos de sensores -->
+  <form id="sensor-form" style="display:none;">
+    <input type="hidden" id="temperature_air" name="temperature_air">
+    <input type="hidden" id="humidity_air" name="humidity_air">
+    <input type="hidden" id="temperature_soil" name="temperature_soil">
+    <input type="hidden" id="humidity_soil" name="humidity_soil">
+    <input type="hidden" id="ph" name="ph">
+    <input type="hidden" id="ec" name="ec">
+    <input type="hidden" id="organic_matter" name="organic_matter">
+    <input type="hidden" id="nitrogen" name="nitrogen">
+    <input type="hidden" id="phosphorus" name="phosphorus">
+    <input type="hidden" id="potassium" name="potassium">
+    <input type="hidden" id="notes" name="notes">
+    <input type="hidden" id="device_id" name="device_id">
+    <input type="hidden" id="user_id" name="user_id">
+  </form>
+
+  <!-- Supabase -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.js"></script>
+  <script>
+  // ================= CONFIG - tus credenciales =================
+  const SUPABASE_URL = 'https://qjzjxcjcfjfammkyskpx.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqemp4Y2pjZmpmYW1ta3lza3B4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1NDk5MTMsImV4cCI6MjA3NTEyNTkxM30.dZUMwvYN_0ILfGDLK1ELneBQz-D-NCb_c6_hprESdDg';
+  const STORAGE_KEY = 'cultivai_device_id';
+  const { createClient } = supabase;
+  const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // ============================================================
+
+  // UI refs
+  const statusText = document.getElementById('statusText');
+  const device1 = document.getElementById('device1');
+  const device2 = document.getElementById('device2');
+  const device3 = document.getElementById('device3');
+  const line12 = document.getElementById('line12');
+  const line13 = document.getElementById('line13');
+  const line23 = document.getElementById('line23');
+  const continueBtn = document.getElementById('continueBtn');
+  const miniNote = document.getElementById('miniNote');
+  const userInfo = document.getElementById('userInfo');
+
+  const messages = [
+    'Comprobando sesión...',
+    '1º sensor conectado',
+    '2º sensor conectado',
+    '3º sensor conectado',
+    '¡Todos los sensores conectados! Guardando datos...'
+  ];
+
+  function updateStatus(message) {
+    statusText.textContent = message;
+    statusText.classList.add('show');
+  }
+
+  function rand(min, max, decimals = 1) {
+    const v = Math.random() * (max - min) + min;
+    return Number(v.toFixed(decimals));
+  }
+
+  // --- Nueva función: Rellenar formulario con promedios ---
+  function populateFormWithReadings(readings, deviceId, userId) {
+    // Calcular promedios de las 3 lecturas
+    const avgTemp = (readings.reduce((sum, r) => sum + r.temperature_c, 0) / readings.length).toFixed(2);
+    const avgHumAir = (readings.reduce((sum, r) => sum + r.humidity_pct, 0) / readings.length).toFixed(2);
+    const avgTempSoil = avgTemp; // Usando misma temp como simplificación
+    const avgHumSoil = (readings.reduce((sum, r) => sum + r.moisture_vwc, 0) / readings.length).toFixed(2);
+    const avgPH = (readings.reduce((sum, r) => sum + r.ph, 0) / readings.length).toFixed(2);
+    const avgEC = (readings.reduce((sum, r) => sum + r.salts_ec, 0) / readings.length).toFixed(2);
+    const avgOM = (readings.reduce((sum, r) => sum + r.organic_matter, 0) / readings.length).toFixed(2);
+    const avgN = Math.round(readings.reduce((sum, r) => sum + r.nitrogen, 0) / readings.length);
+    const avgP = Math.round(readings.reduce((sum, r) => sum + r.phosphorus, 0) / readings.length);
+    const avgK = Math.round(readings.reduce((sum, r) => sum + r.potassium, 0) / readings.length);
+
+    // Rellenar inputs del form
+    document.getElementById('temperature_air').value = avgTemp;
+    document.getElementById('humidity_air').value = avgHumAir;
+    document.getElementById('temperature_soil').value = avgTempSoil;
+    document.getElementById('humidity_soil').value = avgHumSoil;
+    document.getElementById('ph').value = avgPH;
+    document.getElementById('ec').value = avgEC;
+    document.getElementById('organic_matter').value = avgOM;
+    document.getElementById('nitrogen').value = avgN;
+    document.getElementById('phosphorus').value = avgP;
+    document.getElementById('potassium').value = avgK;
+    document.getElementById('notes').value = 'Promedio de 3 sensores - Demo CultivAI';
+    document.getElementById('device_id').value = deviceId;
+    document.getElementById('user_id').value = userId || '';
+
+    return {
+      temperature_air: avgTemp,
+      humidity_air: avgHumAir,
+      temperature_soil: avgTempSoil,
+      humidity_soil: avgHumSoil,
+      ph: avgPH,
+      ec: avgEC,
+      organic_matter: avgOM,
+      nitrogen: avgN,
+      phosphorus: avgP,
+      potassium: avgK,
+      notes: 'Promedio de 3 sensores - Demo CultivAI',
+      device_id: deviceId,
+      user_id: userId
+    };
+  }
+
+  // --- Función alternativa: enviar datos del formulario via POST ---
+  async function submitFormData(endpoint = '/save-sensor-data') {
+    const form = document.getElementById('sensor-form');
+    const formData = new FormData(form);
+    const data = Object.fromEntries(formData.entries());
+
+    try {
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(data)
+      });
+      return await res.json();
+    } catch (error) {
+      console.error('Error enviando formulario:', error);
+      return { ok: false, error: error.message };
+    }
+  }
+
+  // --- Lógica coherente: base común y offsets ---
+  function generateCoherentReadingsForSensors(sensorNames = ['sensor-1','sensor-2','sensor-3']) {
+    const baseTemp = rand(12, 30, 1);
+    const baseHumidity = rand(30, 85, 1);
+    const baseVWC = Math.max(5, Math.min(40, (baseHumidity * 0.4) + rand(-3,3,1)));
+    const basePH = rand(5.2, 7.8, 2);
+    const baseEC = rand(0.15, 3.2, 2);
+    const baseOM = rand(1, 6, 2);
+    const baseN = Math.round(rand(15, 120, 0) + baseOM * 6 + baseEC * 5);
+    const baseP = Math.round(rand(6, 45, 0) + baseOM * 2 + baseEC * 2);
+    const baseK = Math.round(rand(60, 260, 0) + baseOM * 4 + baseEC * 6);
+
+    const readings = sensorNames.map((name, idx) => {
+      const offsetTemp = rand(-1.2, 1.2, 1) + (idx - 1) * rand(-0.4, 0.4, 2);
+      const offsetHum = rand(-3, 3, 1) + (idx - 1) * rand(-1, 1, 1);
+      const offsetVWC = rand(-2.5, 2.5, 1);
+      const offsetPH = rand(-0.12, 0.12, 2);
+      const offsetEC = rand(-0.18, 0.18, 2);
+      const offsetOM = rand(-0.25, 0.25, 2);
+      const offsetN = Math.round(rand(-8, 8, 0));
+      const offsetP = Math.round(rand(-4, 4, 0));
+      const offsetK = Math.round(rand(-10, 10, 0));
+
+      const temperature_c = Number((baseTemp + offsetTemp).toFixed(1));
+      const humidity_pct = Math.min(99, Math.max(5, Number((baseHumidity + offsetHum).toFixed(1))));
+      const moisture_vwc = Number(Math.max(1, Math.min(60, (baseVWC + offsetVWC)).toFixed(1)));
+      const ph = Number(Math.max(3.5, Math.min(9.0, (basePH + offsetPH)).toFixed(2)));
+      const salts_ec = Number(Math.max(0.01, Number((baseEC + offsetEC).toFixed(2))));
+      const organic_matter = Number(Math.max(0.2, Number((baseOM + offsetOM).toFixed(2))));
+      const nitrogen = Math.max(0, baseN + offsetN);
+      const phosphorus = Math.max(0, baseP + offsetP);
+      const potassium = Math.max(0, baseK + offsetK);
+
+      const notes = `Demo coherente — baseTemp:${baseTemp}C baseHum:${baseHumidity}% basePH:${basePH}`;
+
+      return {
+        sensor_name: name,
+        ph,
+        nitrogen,
+        phosphorus,
+        potassium,
+        organic_matter,
+        salts_ec,
+        temperature_c,
+        humidity_pct,
+        moisture_vwc,
+        notes
+      };
+    });
+
+    return readings;
+  }
+
+  // --- Helpers para sesión / device ---
+  function getOrCreateDeviceId() {
+    try {
+      let d = localStorage.getItem(STORAGE_KEY);
+      if (!d) {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) d = crypto.randomUUID();
+        else d = 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+        try { localStorage.setItem(STORAGE_KEY, d); } catch (e) {}
+      }
+      return d;
+    } catch (e) {
+      return 'dev-unknown';
+    }
+  }
+
+  async function ensureDeviceSession(deviceId) {
+    try {
+      const q = await db.from('device_sessions').select('id, device_id, user_id').eq('device_id', deviceId).maybeSingle();
+      if (!q.error && q.data) {
+        return q.data;
+      }
+      const metadata = {
+        ua: navigator.userAgent || null,
+        lang: navigator.language || null,
+        created_from: window.location.href || null
+      };
+      const ins = await db.from('device_sessions').insert([{ device_id: deviceId, metadata, completed: false }]).select().maybeSingle();
+      if (!ins.error && ins.data) return ins.data;
+      return { device_id: deviceId, user_id: null };
+    } catch (e) {
+      return { device_id: deviceId, user_id: null };
+    }
+  }
+
+  async function getAuthenticatedUserId() {
+    try {
+      const { data } = await db.auth.getSession();
+      const session = data?.session || null;
+      if (session && session.user && session.user.id) return session.user.id;
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function saveReadingsToSupabase(deviceId, userId, readings) {
+    try {
+      const payload = readings.map(r => ({
+        device_id: deviceId,
+        user_id: userId || null,
+        sensor_name: r.sensor_name,
+        ph: r.ph,
+        nitrogen: r.nitrogen,
+        phosphorus: r.phosphorus,
+        potassium: r.potassium,
+        organic_matter: r.organic_matter,
+        salts_ec: r.salts_ec,
+        temperature_c: r.temperature_c,
+        humidity_pct: r.humidity_pct,
+        moisture_vwc: r.moisture_vwc,
+        notes: r.notes
+      }));
+      const res = await db.from('sensor_readings').insert(payload);
+      if (res.error) return { ok:false, error: res.error };
+      return { ok:true, data: res.data || null };
+    } catch (e) {
+      return { ok:false, error: e };
+    }
+  }
+
+  // --- Flujo principal ---
+  async function startAnimationAndSave() {
+    updateStatus(messages[0]);
+
+    const authenticatedUserId = await getAuthenticatedUserId();
+
+    if (authenticatedUserId) {
+      userInfo.textContent = `Sesión: usuario autenticado → ${authenticatedUserId}`;
+    } else {
+      userInfo.textContent = `Sesión: no autenticado (se usará device_id o se creará)`;
+    }
+
+    // Animación sensores
+    setTimeout(() => {
+      device1.classList.add('active');
+      updateStatus(messages[1]);
+    }, 800);
+
+    setTimeout(() => {
+      device2.classList.add('active');
+      line12.classList.add('show');
+      updateStatus(messages[2]);
+    }, 2200);
+
+    setTimeout(() => {
+      device3.classList.add('active');
+      line13.classList.add('show');
+      line23.classList.add('show');
+      updateStatus(messages[3]);
+    }, 3600);
+
+    setTimeout(async () => {
+      updateStatus(messages[4]);
+      continueBtn.classList.add('show');
+
+      // Generar lecturas coherentes de los 3 sensores
+      const readings = generateCoherentReadingsForSensors(['sensor-1','sensor-2','sensor-3']);
+
+      const deviceId = getOrCreateDeviceId();
+      const deviceSession = await ensureDeviceSession(deviceId);
+      let sessionUserId = deviceSession?.user_id || null;
+      const finalUserId = authenticatedUserId || sessionUserId || null;
+
+      // *** NOVEDAD: Rellenar formulario con promedios ***
+      const formData = populateFormWithReadings(readings, deviceId, finalUserId);
+      console.log('Formulario rellenado con:', formData);
+
+      // Guardar en Supabase
+      const saveResult = await saveReadingsToSupabase(deviceId, finalUserId, readings);
+
+      if (saveResult.ok) {
+        miniNote.textContent = finalUserId
+          ? ''
+          : '';
+        
+        // Opcional: también podrías enviar el form a un endpoint personalizado
+        // const postResult = await submitFormData('/tu-endpoint-personalizado');
+        // console.log('Resultado POST:', postResult);
+      } else {
+        miniNote.textContent = '';
+      }
+
+      try { 
+        await db.from('device_sessions').update({ 
+          last_seen: new Date().toISOString() 
+        }).eq('device_id', deviceId); 
+      } catch(e){}
+
+    }, 5200);
+  }
+
+  continueBtn.addEventListener('click', () => {
+    try { window.location.href = 'test.html'; } catch(e){}
+  });
+
+  window.addEventListener('load', () => {
+    startAnimationAndSave();
+  });
+  </script>
+</body>
+</html>

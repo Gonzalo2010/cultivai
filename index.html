@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>CultivAI - Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #e8ede6 100%);
+      display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px;
+    }
+    .container { text-align: center; max-width: 600px; }
+    .logo:hover { transform: translateY(-5px); }
+    h1 {
+      font-size: clamp(3.5rem, 10vw, 5.5rem); font-weight: 700; color: #1a2e1a; margin-bottom: 20px;
+      letter-spacing: -0.03em; line-height: 1.1;
+    }
+    .subtitle { font-size: 1.125rem; color: #5a6c5a; margin-bottom: 50px; font-weight: 400; }
+    .cta-button {
+      display: inline-block; padding: 18px 48px; background: #4a7c59; color: white; text-decoration: none;
+      font-size: 1.125rem; font-weight: 500; border-radius: 50px; box-shadow: 0 8px 24px rgba(74,124,89,0.25);
+      transition: all 0.3s; border: none; cursor: pointer; letter-spacing: 0.02em;
+    }
+    .cta-button:hover { background: #3d6847; transform: translateY(-3px); box-shadow: 0 12px 32px rgba(74,124,89,0.35); }
+    @media (max-width:600px){
+      .subtitle { font-size:1rem; margin-bottom:40px; }
+      .cta-button { padding:16px 40px; font-size:1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo"><img src="favicon.ico" alt="CultivAI logo" /></div>
+    <h1>CultivAI</h1>
+    <p class="subtitle">Gestión inteligente de cultivos impulsada por IA</p>
+    <a href="#demo" class="cta-button" id="demoBtn">Probar demo</a>
+  </div>
+
+  <!-- Supabase client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.js"></script>
+  <script>
+    // ------------ CONFIGURA AQUI ----------
+    const SUPABASE_URL = 'https://qjzjxcjcfjfammkyskpx.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqemp4Y2pjZmpmYW1ta3lza3B4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1NDk5MTMsImV4cCI6MjA3NTEyNTkxM30.dZUMwvYN_0ILfGDLK1ELneBQz-D-NCb_c6_hprESdDg';
+    const STORAGE_KEY = 'cultivai_device_id';
+    const { createClient } = supabase;
+    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // --------------------------------------
+
+    function generateDeviceId() {
+      try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
+      return 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    }
+
+    // Recoge metadata accesible sin pedir permisos
+    function collectBrowserMetadata() {
+      try {
+        const nav = navigator || {};
+        const screenObj = window.screen || {};
+        const conn = nav.connection || nav.mozConnection || nav.webkitConnection || {};
+        const tz = (Intl && Intl.DateTimeFormat) ? Intl.DateTimeFormat().resolvedOptions().timeZone : null;
+
+        // Plugins & mimeTypes pueden ser limitados en algunos navegadores; capturamos longitudes
+        let plugins = null;
+        try { plugins = nav.plugins ? Array.from(nav.plugins).map(p => p.name).slice(0,10) : null; } catch(e){ plugins = null; }
+
+        let mimeTypes = null;
+        try { mimeTypes = navigator.mimeTypes ? navigator.mimeTypes.length : null; } catch(e){ mimeTypes = null; }
+
+        return {
+          ua: nav.userAgent || null,
+          platform: nav.platform || null,
+          language: nav.language || nav.languages?.[0] || null,
+          languages: nav.languages || null,
+          cookieEnabled: typeof nav.cookieEnabled === 'boolean' ? nav.cookieEnabled : null,
+          doNotTrack: nav.doNotTrack || null,
+          deviceMemory: nav.deviceMemory || null, // GB, puede ser undefined
+          hardwareConcurrency: nav.hardwareConcurrency || null,
+          connection: {
+            effectiveType: conn.effectiveType || null,
+            downlink: conn.downlink || null,
+            rtt: conn.rtt || null,
+            saveData: conn.saveData || null
+          },
+          screen: {
+            width: screenObj.width || null,
+            height: screenObj.height || null,
+            availWidth: screenObj.availWidth || null,
+            availHeight: screenObj.availHeight || null,
+            colorDepth: screenObj.colorDepth || null
+          },
+          viewport: {
+            innerWidth: window.innerWidth || null,
+            innerHeight: window.innerHeight || null,
+            devicePixelRatio: window.devicePixelRatio || null
+          },
+          timezone: tz,
+          referrer: document.referrer || null,
+          url: window.location.href || null,
+          pluginsSample: plugins,
+          mimeTypesCount: mimeTypes,
+          touchSupport: ('ontouchstart' in window) || (navigator.maxTouchPoints > 0) || false,
+          // no recogemos geolocalización, cámara, mic sin permiso
+          ts: new Date().toISOString()
+        };
+      } catch (e) {
+        return { ts: new Date().toISOString() };
+      }
+    }
+
+    async function ensureSessionSilently() {
+      try {
+        let deviceId = localStorage.getItem(STORAGE_KEY);
+        if (!deviceId) {
+          deviceId = generateDeviceId();
+          try { localStorage.setItem(STORAGE_KEY, deviceId); } catch(e) { /* almacenamiento puede fallar en modo privado */ }
+        }
+
+        // Consultar si existe
+        const resp = await db
+          .from('device_sessions')
+          .select('id, device_id, completed')
+          .eq('device_id', deviceId)
+          .maybeSingle();
+
+        if (!resp.error && !resp.data) {
+          // Crear entrada con la metadata completa
+          const metadata = collectBrowserMetadata();
+          // Inserción silenciosa
+          await db.from('device_sessions').insert([{
+            device_id: deviceId,
+            metadata: metadata,
+            completed: false
+          }]);
+        } else if (!resp.error && resp.data) {
+          // Actualizar last_seen y anexar metadata más reciente (merge)
+          const metadata = collectBrowserMetadata();
+          // actualizamos metadata parcialmente: guardamos nuevo last_seen y metadata_latest
+          await db.from('device_sessions').update({
+            last_seen: new Date().toISOString(),
+            metadata: metadata
+          }).eq('device_id', deviceId);
+        } else {
+          // si hay error en la consulta, no hacemos nada visible
+        }
+      } catch (e) {
+        // NO hacemos console.log ni mostramos errores al usuario; operación silenciosa
+      }
+    }
+
+    // Ejecutar en cuanto cargue la página (sin logs)
+    document.addEventListener('DOMContentLoaded', function() {
+      ensureSessionSilently();
+    });
+
+    // Acción del botón demo (mantener sencilla)
+    document.getElementById('demoBtn').addEventListener('click', function(e) {
+      // redirige o abre demo; no mostramos logs
+      window.location.href = 'ubica.html'; // cámbialo a la ruta real de la demo
+    });
+  </script>
+</body>
+</html>

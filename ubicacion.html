@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cultivai - Demo</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #F8FFFC;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+    .top-media, .video-fullscreen {
+      width: 100vw;
+      max-width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #F8FFFC;
+      min-height: 300px;
+      transition: all 0.4s cubic-bezier(.4,0,.2,1);
+    }
+    .top-media img {
+      max-width: 100%;
+      max-height: 60vh;
+      border-radius: 18px;
+    }
+    .btn-simple {
+      margin: 32px auto 0;
+      display: block;
+      padding: 12px 32px;
+      border-radius: 30px;
+      background: #4a7c59;
+      color: #fff;
+      font-size: 1.1rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 12px rgba(74,124,89,0.12);
+      transition: background 0.2s, transform 0.1s;
+    }
+    .btn-simple:active { transform: translateY(1px); }
+    .video-fullscreen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      background: #ebf2ea;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+    }
+    .video-container {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+    .video-container video {
+      max-width: 90vw;
+      max-height: 80vh;
+      border-radius: 20px;
+      box-shadow: 0 8px 64px rgba(74,124,89,0.16);
+      background: #222;
+    }
+    .btn-next {
+      margin-top: 40px;
+      background: #257a86;
+      color: white;
+      border: none;
+      font-size: 1.1rem;
+      padding: 12px 40px;
+      border-radius: 30px;
+      box-shadow: 0 1px 8px rgba(37,122,134,0.17);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-next:hover { background: #1a4856; }
+    @media (max-width: 700px) {
+      .video-container video { max-width: 99vw; max-height: 45vh; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Zona imagen de portada y botón inicial -->
+  <div class="top-media" id="cover">
+    <img src="ubidemo2.png" alt="Imagen de portada">
+  </div>
+  <button class="btn-simple" id="btnVerVideo">Usar ubicación de Demo</button>
+  
+  <!-- Video a pantalla completa (viewport) -->
+  <div class="video-fullscreen" id="videoSection">
+    <div class="video-container">
+      <video id="videoDemo" src="videoubidemo.gif" controls></video>
+    </div>
+    <button class="btn-next" id="btnNext">Siguiente</button>
+  </div>
+
+  <!-- Supabase client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js/dist/umd/supabase.js"></script>
+  <script>
+    // ----------------- CONFIG (ya con tus valores) -----------------
+    const SUPABASE_URL = 'https://qjzjxcjcfjfammkyskpx.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqemp4Y2pjZmpmYW1ta3lza3B4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1NDk5MTMsImV4cCI6MjA3NTEyNTkxM30.dZUMwvYN_0ILfGDLK1ELneBQz-D-NCb_c6_hprESdDg';
+    const STORAGE_KEY = 'cultivai_device_id';
+    const { createClient } = supabase;
+    const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    // ----------------------------------------------------------------
+
+    // Generador de device id (intenta crypto.randomUUID si existe)
+    function generateDeviceId() {
+      try {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+      } catch (e) {}
+      return 'dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2);
+    }
+
+    // Recoge metadata accesible sin permisos
+    function collectBrowserMetadata() {
+      try {
+        const nav = navigator || {};
+        const screenObj = window.screen || {};
+        const conn = nav.connection || nav.mozConnection || nav.webkitConnection || {};
+        const tz = (Intl && Intl.DateTimeFormat) ? Intl.DateTimeFormat().resolvedOptions().timeZone : null;
+
+        let pluginsSample = null;
+        try {
+          if (nav.plugins && nav.plugins.length) {
+            pluginsSample = Array.from(nav.plugins).map(p => p.name).slice(0,10);
+          }
+        } catch (e) { pluginsSample = null; }
+
+        let mimeTypesCount = null;
+        try { mimeTypesCount = navigator.mimeTypes ? navigator.mimeTypes.length : null; } catch (e) { mimeTypesCount = null; }
+
+        return {
+          ua: nav.userAgent || null,
+          platform: nav.platform || null,
+          language: nav.language || (nav.languages && nav.languages[0]) || null,
+          languages: nav.languages ? Array.from(nav.languages) : null,
+          cookieEnabled: (typeof nav.cookieEnabled === 'boolean') ? nav.cookieEnabled : null,
+          doNotTrack: nav.doNotTrack || null,
+          deviceMemory: nav.deviceMemory || null,
+          hardwareConcurrency: nav.hardwareConcurrency || null,
+          connection: {
+            effectiveType: conn.effectiveType || null,
+            downlink: conn.downlink || null,
+            rtt: conn.rtt || null,
+            saveData: conn.saveData || null
+          },
+          screen: {
+            width: screenObj.width || null,
+            height: screenObj.height || null,
+            availWidth: screenObj.availWidth || null,
+            availHeight: screenObj.availHeight || null,
+            colorDepth: screenObj.colorDepth || null
+          },
+          viewport: {
+            innerWidth: window.innerWidth || null,
+            innerHeight: window.innerHeight || null,
+            devicePixelRatio: window.devicePixelRatio || null
+          },
+          timezone: tz,
+          referrer: document.referrer || null,
+          url: window.location.href || null,
+          pluginsSample,
+          mimeTypesCount,
+          touchSupport: (('ontouchstart' in window) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0)) || false,
+          timestamp: new Date().toISOString()
+        };
+      } catch (e) {
+        return { timestamp: new Date().toISOString() };
+      }
+    }
+
+    // Inserta o actualiza la sesión de forma silenciosa (sin logs)
+    async function ensureSessionSilently() {
+      try {
+        let deviceId;
+        try { deviceId = localStorage.getItem(STORAGE_KEY); } catch (e) { deviceId = null; }
+        if (!deviceId) {
+          deviceId = generateDeviceId();
+          try { localStorage.setItem(STORAGE_KEY, deviceId); } catch (e) { /* storage puede fallar en modo incógnito */ }
+        }
+
+        const query = await db
+          .from('device_sessions')
+          .select('id, device_id, completed, metadata')
+          .eq('device_id', deviceId)
+          .maybeSingle();
+
+        if (!query.error && !query.data) {
+          // crear fila
+          const metadata = collectBrowserMetadata();
+          // insert silencioso
+          await db.from('device_sessions').insert([{
+            device_id: deviceId,
+            metadata: metadata,
+            completed: false
+          }]);
+        } else if (!query.error && query.data) {
+          // actualizar last_seen y metadata (sobrescribe metadata con snapshot actual)
+          const metadata = collectBrowserMetadata();
+          await db.from('device_sessions').update({
+            last_seen: new Date().toISOString(),
+            metadata: metadata
+          }).eq('device_id', deviceId);
+        } else {
+          // en caso de error en la query, no hacemos nada visible
+        }
+      } catch (e) {
+        // silencioso: trap y no mostramos nada ni logs
+      }
+    }
+
+    // UI: comportamiento del botón y del video (sin logs)
+    const btnVerVideo = document.getElementById('btnVerVideo');
+    const cover = document.getElementById('cover');
+    const videoSection = document.getElementById('videoSection');
+    const videoDemo = document.getElementById('videoDemo');
+    const btnNext = document.getElementById('btnNext');
+
+    btnVerVideo.addEventListener('click', async () => {
+      // creamos/aseguramos sesión antes de mostrar el video
+      await ensureSessionSilently();
+      // mostrar video a pantalla completa
+      cover.style.display = 'none';
+      btnVerVideo.style.display = 'none';
+      videoSection.style.display = 'flex';
+      try { await videoDemo.play(); } catch (e) { /* no mostramos errores */ }
+    });
+
+    btnNext.addEventListener('click', () => {
+      // Aquí va la acción siguiente (redirigir/demo). Manténlo sencillo.
+      // Por ejemplo: window.location.href = '/demo.html';
+      // No mostramos logs
+      window.location.href = '/demo.html';
+    });
+
+    // Ejecutar en carga inicial (para visitas en las que no pulsan botón)
+    document.addEventListener('DOMContentLoaded', function() {
+      // Llamada no bloqueante, silenciosa
+      ensureSessionSilently();
+    });
+  </script>
+</body>
+</html>

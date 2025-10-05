@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CultivAI Dashboard</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --glass-bg: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.18);
+  --glass-shadow: rgba(0, 0, 0, 0.08);
+  --accent-green: #34C759;
+  --accent-blue: #007AFF;
+  --text-primary: #1d1d1f;
+  --text-secondary: #86868b;
+  --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #e8f5e9 100%);
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', sans-serif;
+  background: var(--bg-gradient);
+  color: var(--text-primary);
+  min-height: 100vh;
+  padding: 20px;
+  -webkit-font-smoothing: antialiased;
+}
+
+.container { max-width: 1400px; margin: 0 auto; }
+
+/* Header */
+.header { text-align: center; margin-bottom: 48px; animation: fadeInDown 0.6s ease; }
+
+.header h1 {
+  font-size: 48px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 12px;
+  background: linear-gradient(135deg, #1d1d1f 0%, #34C759 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+.header p { font-size: 17px; color: var(--text-secondary); font-weight: 400; max-width: 600px; margin: 0 auto; line-height: 1.5; }
+
+/* Glass Card */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(40px) saturate(180%);
+  -webkit-backdrop-filter: blur(40px) saturate(180%);
+  border-radius: 24px; border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px var(--glass-shadow);
+  padding: 28px; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer; position: relative; overflow: hidden;
+}
+
+.glass-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+  opacity: 0; transition: opacity 0.4s ease;
+}
+
+.glass-card:hover { transform: translateY(-4px) scale(1.01); box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12); }
+.glass-card:hover::before { opacity: 1; }
+
+/* Grid Layout */
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-bottom: 24px; }
+.grid-2 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.grid-3 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+
+/* Card Header */
+.card-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.card-icon { display: inline-flex; width: 28px; height: 28px; color: var(--text-primary); }
+.card-title { font-size: 20px; font-weight: 600; letter-spacing: -0.01em; color: var(--text-primary); }
+
+/* Generic SVG icon style */
+.icon { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Metric Display */
+.metric-display { text-align: center; padding: 24px 0; }
+
+.metric-value {
+  font-size: 56px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; margin-bottom: 8px;
+  background: linear-gradient(135deg, var(--accent-green) 0%, #30d158 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+.metric-label { font-size: 15px; color: var(--text-secondary); font-weight: 500; }
+
+/* Status Badge */
+.status-badge {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px;
+  font-size: 14px; font-weight: 600; background: rgba(52, 199, 89, 0.15); color: var(--accent-green);
+  border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; animation: pulse 2s ease-in-out infinite; }
+
+/* Sensor Grid */
+.sensor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 16px; margin-top: 20px; }
+.sensor-item {
+  text-align: center; padding: 20px 12px; background: rgba(255, 255, 255, 0.5);
+  border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.3); transition: all 0.3s ease;
+}
+.sensor-item:hover { background: rgba(255, 255, 255, 0.8); transform: scale(1.05); }
+.sensor-icon { display: inline-flex; width: 24px; height: 24px; margin-bottom: 8px; color: var(--text-primary); }
+.sensor-value { font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+.sensor-label { font-size: 13px; color: var(--text-secondary); font-weight: 500; }
+
+/* Weather Display */
+.weather-display { display: flex; justify-content: space-around; align-items: center; padding: 24px 0; }
+.weather-item { text-align: center; }
+.weather-icon { display: inline-flex; width: 48px; height: 48px; margin-bottom: 12px; color: var(--text-primary); filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1)); }
+.weather-value { font-size: 32px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+.weather-label { font-size: 14px; color: var(--text-secondary); font-weight: 500; }
+
+/* Plant Recommendation */
+.plant-display { text-align: center; padding: 32px 0; }
+.plant-icon { display: inline-flex; width: 80px; height: 80px; margin-bottom: 16px; color: var(--accent-green); filter: drop-shadow(0 8px 16px rgba(0,0,0,0.15)); animation: float 3s ease-in-out infinite; }
+.plant-name { font-size: 28px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; }
+.plant-description { font-size: 15px; color: var(--text-secondary); line-height: 1.5; max-width: 400px; margin: 0 auto; }
+
+/* Summary Text */
+.summary-text { font-size: 15px; line-height: 1.6; color: var(--text-secondary); padding: 8px 0; }
+
+/* Update Time */
+.update-time { text-align: center; font-size: 13px; color: var(--text-secondary); margin-top: 16px; font-weight: 500; }
+
+/* AI Popup */
+.ai-popup {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4); backdrop-filter: blur(10px);
+  display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; animation: fadeIn 0.3s ease;
+}
+.ai-popup.active { display: flex; }
+
+.ai-bubble {
+  background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(40px) saturate(180%);
+  border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.3);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3); padding: 32px; max-width: 520px; width: 100%;
+  position: relative; animation: slideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ai-close {
+  position: absolute; top: 16px; right: 16px; width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(0, 0, 0, 0.05); border: none; cursor: pointer; color: var(--text-secondary); transition: all 0.2s ease;
+  display: flex; align-items: center; justify-content: center;
+}
+.ai-close:hover { background: rgba(0, 0, 0, 0.1); transform: scale(1.1); }
+
+.ai-header { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 10px; padding-right: 40px; }
+.ai-body { font-size: 15px; line-height: 1.6; color: var(--text-secondary); margin-bottom: 18px; }
+
+.ai-actions { display: flex; gap: 12px; }
+.btn {
+  appearance: none; border: 1px solid rgba(0,0,0,0.1); border-radius: 12px; padding: 12px 16px; font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.btn-primary { background: var(--accent-green); border-color: rgba(52,199,89,0.5); color: #fff; }
+.btn-primary:hover { transform: translateY(-2px); }
+.btn-secondary { background: #fff; color: var(--text-primary); }
+.btn-secondary:hover { background: #f2f2f2; transform: translateY(-2px); }
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeInDown { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(40px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .header h1 { font-size: 36px; }
+  .metric-value { font-size: 42px; }
+  .grid { grid-template-columns: 1fr; }
+  .sensor-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+
+<!-- SVG ICON SPRITE -->
+<svg width="0" height="0" style="position:absolute;left:-9999px;visibility:hidden" aria-hidden="true">
+  <symbol id="icon-leaf" viewBox="0 0 24 24">
+    <path d="M20 4c-7 0-12 3-14 7a6 6 0 0 0 8 8c4-2 7-7 7-14z"></path>
+    <path d="M4 20c4-4 8-6 12-8"></path>
+  </symbol>
+  <symbol id="icon-beaker" viewBox="0 0 24 24">
+    <path d="M6 2h12"></path>
+    <path d="M9 2v5l-4 8a4 4 0 0 0 3.6 6h6.8A4 4 0 0 0 19 15l-4-8V2"></path>
+    <path d="M8 11h8"></path>
+  </symbol>
+  <symbol id="icon-drop" viewBox="0 0 24 24">
+    <path d="M12 2c-3 6-6 8-6 12a6 6 0 0 0 12 0c0-4-3-6-6-12z"></path>
+  </symbol>
+  <symbol id="icon-thermo" viewBox="0 0 24 24">
+    <path d="M12 3a2 2 0 0 0-2 2v8.17a4 4 0 1 0 4 0V5a2 2 0 0 0-2-2z"></path>
+    <path d="M12 12v-4"></path>
+  </symbol>
+  <symbol id="icon-npk" viewBox="0 0 24 24">
+    <circle cx="6" cy="12" r="2"></circle>
+    <circle cx="12" cy="12" r="2"></circle>
+    <circle cx="18" cy="12" r="2"></circle>
+  </symbol>
+  <symbol id="icon-bars" viewBox="0 0 24 24">
+    <path d="M4 20V8"></path>
+    <path d="M10 20V4"></path>
+    <path d="M16 20v-6"></path>
+    <path d="M22 20v-10"></path>
+  </symbol>
+  <symbol id="icon-cloud-sun" viewBox="0 0 24 24">
+    <circle cx="6" cy="6" r="3"></circle>
+    <path d="M9 7a4 4 0 0 1 6.9 2A4 4 0 1 1 17 19H8a4 4 0 1 1 1-8"></path>
+  </symbol>
+  <symbol id="icon-cloud-rain" viewBox="0 0 24 24">
+    <path d="M17 18a4 4 0 1 0-1-7.75A5 5 0 1 0 6 12"></path>
+    <path d="M8 20l1-2"></path>
+    <path d="M12 21l1-2"></path>
+    <path d="M16 20l1-2"></path>
+  </symbol>
+  <symbol id="icon-file" viewBox="0 0 24 24">
+    <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7z"></path>
+    <path d="M14 2v5h5"></path>
+    <path d="M9 13h6"></path>
+    <path d="M9 17h6"></path>
+  </symbol>
+  <symbol id="icon-gauge" viewBox="0 0 24 24">
+    <path d="M3 13a9 9 0 1 1 18 0"></path>
+    <path d="M12 13l4-4"></path>
+  </symbol>
+  <symbol id="icon-wave" viewBox="0 0 24 24">
+    <path d="M2 12c2 2 4 2 6 0s4-2 6 0 4 2 6 0"></path>
+  </symbol>
+  <symbol id="icon-x" viewBox="0 0 24 24">
+    <path d="M18 6L6 18"></path>
+    <path d="M6 6l12 12"></path>
+  </symbol>
+</svg>
+
+<div class="container">
+  <div class="header">
+    <h1>CultivAI</h1>
+    <p>Monitoreo inteligente de tu parcela en tiempo real</p>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="glass-card" data-explain="metric-soil">
+      <div class="card-header">
+        <span class="card-icon" aria-hidden="true"><svg class="icon"><use href="#icon-gauge"></use></svg></span>
+        <span class="card-title">Estado del Suelo</span>
+      </div>
+      <div class="metric-display">
+        <div class="status-badge">
+          <span class="status-dot"></span>
+          <span id="soil-status">Óptimo</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="glass-card" data-explain="metric-ph">
+      <div class="card-header">
+        <span class="card-icon" aria-hidden="true"><svg class="icon"><use href="#icon-beaker"></use></svg></span>
+        <span class="card-title">pH del Suelo</span>
+      </div>
+      <div class="metric-display">
+        <div class="metric-value" id="ph-value">6.8</div>
+        <div class="metric-label">Nivel de acidez</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-3">
+    <div class="glass-card" data-explain="metric-moisture">
+      <div class="card-header">
+        <span class="card-icon" aria-hidden="true"><svg class="icon"><use href="#icon-drop"></use></svg></span>
+        <span class="card-title">Humedad</span>
+      </div>
+      <div class="metric-display">
+        <div class="metric-value" id="moisture-value">45%</div>
+        <div class="metric-label">Agua disponible</div>
+      </div>
+    </div>
+
+    <div class="glass-card" data-explain="metric-temp">
+      <div class="card-header">
+        <span class="card-icon" aria-hidden="true"><svg class="icon"><use href="#icon-thermo"></use></svg></span>
+        <span class="card-title">Temperatura</span>
+      </div>
+      <div class="metric-display">
+        <div class="metric-value" id="temp-value">22°</div>
+        <div class="metric-label">Temperatura suelo</div>
+      </div>
+    </div>
+
+    <div class="glass-card" data-explain="metric-nutrients">
+      <div class="card-header">
+        <span class="card-icon" aria-hidden="true"><svg class="icon"><use href="#icon-npk"></use></svg></span>
+        <span class="card-title">Nutrientes</span>
+      </div>
+      <div class="metric-display">
+        <div class="metric-value" style="font-size: 32px;" id="nutrients-val">N/P/K</div>
+        <div class="metric-label">Macronutrientes</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="glass-card" data-explain="sensores-vivo">
+      <div class="card-header">
+        <span class="card-icon" aria-hidden="true"><svg class="icon"><use href="#icon-bars"></use></svg></span>
+        <span class="card-title">Sensores en Vivo</span>
+      </div>
+      <div class="sensor-grid" id="sensors-grid"></div>
+      <div class="update-time" id="sensors-update">Actualizando...</div>
+    </div>
+
+    <div class="glass-card" data-explain="cultivo-recomendado">
+      <div class="plant-display">
+        <div class="plant-icon" id="plant-icon"><svg class="icon" viewBox="0 0 24 24"><use href="#icon-leaf"></use></svg></div>
+        <div class="plant-name" id="plant-name">Cultivo recomendado</div>
+        <div class="plant-description" id="plant-desc">Análisis basado en suelo y clima</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="glass-card" data-explain="meteo-actual">
+      <div class="card-header">
+        <span class="card-icon" aria-hidden="true"><svg class="icon"><use href="#icon-cloud-sun"></use></svg></span>
+        <span class="card-title">Clima Actual</span>
+      </div>
+      <div class="weather-display" id="meteo-box"></div>
+    </div>
+
+    <div class="glass-card" data-explain="resumen">
+      <div class="card-header">
+        <span class="card-icon" aria-hidden="true"><svg class="icon"><use href="#icon-file"></use></svg></span>
+        <span class="card-title">Resumen del Análisis</span>
+      </div>
+      <div class="summary-text" id="text-resumen">Cargando análisis...</div>
+    </div>
+  </div>
+</div>
+
+<!-- Botón flotante chat IA con texto -->
+<button id="chat-float-ia" aria-label="Chat IA" style="
+  position: fixed;
+  bottom: 32px;
+  right: 32px;
+  z-index: 1200;
+  border-radius: 50px;
+  background: #34C759;
+  border: none;
+  width: 64px;
+  height: 64px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.17);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: box-shadow 0.2s;
+  cursor: pointer;
+  font-size: 2rem;
+  color: #fff;
+  font-weight: bold;
+  letter-spacing: 2px;
+">
+  IA
+</button>
+
+
+<!-- AI Popup (CTA a chat-ia.html) -->
+<div class="ai-popup" id="ai-popup" onclick="closePopup(event)">
+  <div class="ai-bubble" onclick="event.stopPropagation()">
+    <button class="ai-close" onclick="closePopup()" aria-label="Cerrar">
+      <svg class="icon" viewBox="0 0 24 24"><use href="#icon-x"></use></svg>
+    </button>
+    <div class="ai-header" id="ai-header">Asistente IA</div>
+    <div class="ai-body" id="ai-body">Abrir el chat de IA para profundizar en este bloque y conversar con contexto en tiempo real.</div>
+    <div class="ai-actions">
+      <button class="btn btn-primary" id="ai-open">Abrir chat IA</button>
+      <button class="btn btn-secondary" onclick="closePopup()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<script>
+// Configuration
+const SUPABASE_URL = 'https://qjzjxcjcfjfammkyskpx.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqemp4Y2pjZmpmYW1ta3lza3B4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1NDk5MTMsImV4cCI6MjA3NTEyNTkxM30.dZUMwvYN_0ILfGDLK1ELneBQz-D-NCb_c6_hprESdDg';
+const DEEPSEEK_KEY = "sk-f2111166ca894d86a6bffdc15774999e";
+const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/v1/chat/completions";
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const LOCATION = {
+  name: "Cuevas del Becerro",
+  region: "Málaga, Andalucía, España",
+  latitude: 36.9124,
+  longitude: -4.9593,
+  climate: "Mediterráneo continental",
+  altitude: "700m"
+};
+
+let latestSensors = {};
+let latestWeather = {};
+let lastExplainId = null;
+
+// Main initialization
+async function main() {
+  const deviceId = localStorage.getItem('cultivai_device_id') || "";
+  const { data: informe } = await db
+    .from('cultivo_informes_ai')
+    .select('*')
+    .eq('device_id', deviceId)
+    .order('fecha', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const info = informe || {};
+  updateSummary(info);
+  await updateSensors();
+  await updateWeather();
+  await updateAIRecommendation();
+
+  setInterval(updateSensors, 1000);
+  setInterval(updateAIRecommendation, 30000);
+}
+
+// Update functions
+function updateSummary(info) {
+  const summary = info.texto_resumido || info.informe_tecnico || "Análisis en proceso...";
+  document.getElementById("text-resumen").textContent = summary.substring(0, 400) + '...';
+
+  let status = "Óptimo";
+  const low = summary.toLowerCase();
+  if (low.includes("degrad") || low.includes("compac")) status = "Atención";
+  document.getElementById("soil-status").textContent = status;
+}
+
+async function updateSensors() {
+  const { data } = await db
+    .from('sensor_readings')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (!data || !data.length) return;
+
+  latestSensors = data[0];
+
+  // Update main metrics
+  document.getElementById("ph-value").textContent = Number(latestSensors.ph || 6.8).toFixed(1);
+  document.getElementById("moisture-value").textContent = Math.round(latestSensors.moisture_vwc || 45) + '%';
+  document.getElementById("temp-value").textContent = Math.round(latestSensors.temperature_c || 22) + '°';
+  document.getElementById("nutrients-val").textContent =
+    `${latestSensors.nitrogen || 0}/${latestSensors.phosphorus || 0}/${latestSensors.potassium || 0}`;
+
+  // Sensor grid
+  const sensors = [
+    { key: 'temperature_c', label: 'Temp. Suelo', unit: '°C' },
+    { key: 'humidity_pct', label: 'Humedad Aire', unit: '%' },
+    { key: 'salts_ec', label: 'Conductividad', unit: 'mS/cm' },
+    { key: 'organic_matter', label: 'Mat. Orgánica', unit: '%' },
+    { key: 'nitrogen', label: 'Nitrógeno', unit: 'ppm' },
+    { key: 'phosphorus', label: 'Fósforo', unit: 'ppm' },
+    { key: 'potassium', label: 'Potasio', unit: 'ppm' },
+    { key: 'moisture_vwc', label: 'Humedad', unit: '%' }
+  ];
+
+  const getIconId = (k) => {
+    if (k === 'temperature_c') return '#icon-thermo';
+    if (k === 'humidity_pct' || k === 'moisture_vwc') return '#icon-drop';
+    if (k === 'salts_ec') return '#icon-wave';
+    if (k === 'organic_matter') return '#icon-leaf';
+    return '#icon-beaker';
+  };
+
+  let html = '';
+  sensors.forEach(sensor => {
+    if (latestSensors[sensor.key] !== undefined) {
+      html += `
+        <div class="sensor-item" data-explain="sensor-${sensor.key}">
+          <div class="sensor-icon" aria-hidden="true"><svg class="icon"><use href="${getIconId(sensor.key)}"></use></svg></div>
+          <div class="sensor-value">${Number(latestSensors[sensor.key]).toFixed(1)}</div>
+          <div class="sensor-label">${sensor.label}</div>
+        </div>
+      `;
+    }
+  });
+
+  document.getElementById('sensors-grid').innerHTML = html;
+  document.getElementById('sensors-update').textContent =
+    `Actualizado: ${new Date().toLocaleTimeString('es-ES')}`;
+}
+
+async function updateWeather() {
+  try {
+    const resp = await fetch(
+      `https://api.open-meteo.com/v1/forecast?latitude=${LOCATION.latitude}&longitude=${LOCATION.longitude}&current_weather=true&hourly=relative_humidity_2m,precipitation&forecast_days=1&timezone=Europe/Madrid`
+    );
+    const data = await resp.json();
+
+    const temp = data.current_weather?.temperature || 0;
+    const humidity = data.hourly?.relative_humidity_2m?.[0] || 0;
+    const precip = data.hourly?.precipitation?.[0] || 0;
+
+    latestWeather = { temp, humidity, precip };
+
+    document.getElementById("meteo-box").innerHTML = `
+      <div class="weather-item">
+        <div class="weather-icon" aria-hidden="true"><svg class="icon"><use href="#icon-thermo"></use></svg></div>
+        <div class="weather-value">${temp}°</div>
+        <div class="weather-label">Temperatura</div>
+      </div>
+      <div class="weather-item">
+        <div class="weather-icon" aria-hidden="true"><svg class="icon"><use href="#icon-drop"></use></svg></div>
+        <div class="weather-value">${humidity}%</div>
+        <div class="weather-label">Humedad</div>
+      </div>
+      <div class="weather-item">
+        <div class="weather-icon" aria-hidden="true"><svg class="icon"><use href="#icon-cloud-rain"></use></svg></div>
+        <div class="weather-value">${precip}mm</div>
+        <div class="weather-label">Precipitación</div>
+      </div>
+    `;
+  } catch (error) {
+    console.error('[v1] Error fetching weather:', error);
+  }
+}
+
+async function updateAIRecommendation() {
+  document.getElementById("plant-icon").innerHTML = `<svg class="icon" viewBox="0 0 24 24"><use href="#icon-leaf"></use></svg>`;
+  document.getElementById("plant-name").textContent = "Analizando...";
+  document.getElementById("plant-desc").textContent = "La IA está evaluando datos de suelo y clima en tiempo real...";
+
+  try {
+    const prompt = `Eres un experto agrónomo especializado en ${LOCATION.region}. Analiza estos datos EN TIEMPO REAL y recomienda el mejor cultivo:
+
+UBICACIÓN:
+- Lugar: ${LOCATION.name}, ${LOCATION.region}
+- Coordenadas: ${LOCATION.latitude}, ${LOCATION.longitude}
+- Clima: ${LOCATION.climate}
+- Altitud: ${LOCATION.altitude}
+
+DATOS METEOROLÓGICOS:
+- Temperatura ambiente: ${latestWeather.temp || 'N/A'}°C
+- Humedad relativa: ${latestWeather.humidity || 'N/A'}%
+- Precipitación: ${latestWeather.precip || 'N/A'}mm
+
+SENSORES SUELO:
+- pH: ${latestSensors.ph || 'N/A'}
+- Humedad suelo: ${latestSensors.moisture_vwc || 'N/A'}%
+- Temperatura suelo: ${latestSensors.temperature_c || 'N/A'}°C
+- N: ${latestSensors.nitrogen || 'N/A'} ppm
+- P: ${latestSensors.phosphorus || 'N/A'} ppm
+- K: ${latestSensors.potassium || 'N/A'} ppm
+- EC: ${latestSensors.salts_ec || 'N/A'} mS/cm
+- MO: ${latestSensors.organic_matter || 'N/A'}%
+
+RESPONDE EN ESTE FORMATO EXACTO (SIN EMOJIS):
+CULTIVO: [nombre]
+RAZÓN: [2-3 líneas con lógica de mercado, clima, suelo y rentabilidad]`;
+
+    const response = await fetch(DEEPSEEK_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${DEEPSEEK_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: "deepseek-chat",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+        max_tokens: 400
+      })
+    });
+
+    if (!response.ok) throw new Error(`API error: ${response.status}`);
+
+    const data = await response.json();
+    const aiResponse = data?.choices?.[0]?.message?.content || '';
+
+    const cropMatch = aiResponse.match(/CULTIVO:\s*(.+)/i);
+    const reasonMatch = aiResponse.match(/RAZÓN:\s*([\s\S]+)/i);
+
+    const cropName = cropMatch ? cropMatch[1].trim() : "Cultivo Recomendado";
+    const cropReason = reasonMatch ? reasonMatch[1].trim() : "Análisis basado en condiciones actuales de suelo, clima y mercado.";
+
+    document.getElementById("plant-icon").innerHTML = `<svg class="icon" viewBox="0 0 24 24"><use href="#icon-leaf"></use></svg>`;
+    document.getElementById("plant-name").textContent = cropName;
+    document.getElementById("plant-desc").textContent = cropReason;
+
+  } catch (error) {
+    console.error('[v1] Error getting AI recommendation:', error);
+    document.getElementById("plant-icon").innerHTML = `<svg class="icon" viewBox="0 0 24 24"><use href="#icon-file"></use></svg>`;
+    document.getElementById("plant-name").textContent = "Error de Conexión";
+    document.getElementById("plant-desc").textContent =
+      "No se pudo obtener la recomendación. Verifica la clave API de DeepSeek y la conexión.";
+  }
+}
+
+// Simple AI popup CTA instead of auto-explanations
+document.body.addEventListener('click', function(e) {
+  let target = e.target;
+  while (target && !target.classList?.contains('glass-card') && target !== document.body) {
+    target = target.parentNode;
+  }
+  if (target && target.classList?.contains('glass-card')) {
+    const id = target.dataset.explain || 'general';
+    openAIPopup(id);
+  }
+});
+
+function openAIPopup(id) {
+  lastExplainId = id;
+  const mapTitles = {
+    "metric-soil": "Estado del Suelo",
+    "metric-ph": "pH del Suelo",
+    "metric-moisture": "Humedad del Suelo",
+    "metric-temp": "Temperatura del Suelo",
+    "metric-nutrients": "Nutrientes NPK",
+    "sensores-vivo": "Sensores en Vivo",
+    "cultivo-recomendado": "Cultivo recomendado por IA",
+    "meteo-actual": "Clima Actual",
+    "resumen": "Resumen del Análisis",
+    "chat-float": "Chat Inteligente IA"
+  };
+  const title = mapTitles[id] || "Asistente IA";
+  document.getElementById('ai-header').textContent = title;
+  document.getElementById('ai-body').textContent = "Abrir el chat de IA para profundizar y recibir ayuda contextual.";
+  document.getElementById('ai-popup').classList.add('active');
+}
+
+function closePopup(event) {
+  if (!event || event.target.id === 'ai-popup') {
+    document.getElementById('ai-popup').classList.remove('active');
+  }
+}
+
+document.getElementById('ai-open').addEventListener('click', () => {
+  const ctx = encodeURIComponent(lastExplainId || 'general');
+  window.location.href = `chat-ia.html?context=${ctx}`;
+});
+
+// BOTÓN flotante IA con texto
+document.getElementById('chat-float-ia').addEventListener('click', function(e) {
+  openAIPopup('chat-float');
+});
+
+main();
+</script>
+</body>
+</html>

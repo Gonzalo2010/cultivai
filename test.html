@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>CultivAI - Cuestionario de Fertilidad del Suelo</title>
+<style>
+  body {margin:0; font-family:system-ui,sans-serif; background:#F8FFFC; min-height:100vh;
+        display:flex;flex-direction:column;align-items:center;justify-content:flex-start; padding:20px;}
+  .logo-bar {width:100%;background:#277b4d20;border-radius:0 0 24px 24px;box-shadow:0 2px 24px rgba(34,90,53,0.04);text-align:center;margin-bottom:22px;}
+  .logo-bar h1 {font-size:2rem;font-weight:bold;color:#277b4d;margin:14px 0 18px 0;}
+  .test-container {background:#fff;border-radius:18px;box-shadow:0 2px 22px rgba(34,90,53,0.07);max-width:420px;width:98vw;min-width:320px;
+    margin-bottom:16px;padding:32px 20px 22px 20px; display:flex;flex-direction:column;align-items:stretch; animation:fadeIn 0.4s;}
+  @keyframes fadeIn {from{opacity:0} to{opacity:1}}
+  .preg-title {font-size:1.19rem;font-weight:600;color:#225a35;margin-bottom:15px;}
+  label {color:#174e34;font-size:1rem;font-weight:500;margin-bottom:7px;}
+  .input-open, textarea {width:100%;font-size:1rem;padding:8px 11px;margin:7px 0 14px 0;border:1.4px solid #4a7c59; border-radius:6px; background:#f5fff3; transition:border 0.2s;}
+  textarea {min-height:56px;resize:vertical;}
+  .choice-box {display:flex;flex-direction:column;gap:10px;margin:8px 0 11px 0;}
+  .inline-choice input[type="text"] {margin-left:10px;width:152px;background:#eef7e9;}
+  .actions {display:flex;gap:14px;justify-content:flex-end;margin-top:13px;}
+  .btn {padding:10px 23px;border-radius:7px;border:none;background:#277b4d;color:#fff;font-size:1.09rem;font-weight:500; cursor:pointer;
+    box-shadow:0 2px 8px rgba(39,123,77,0.08);transition:background 0.2s;}
+  .btn:disabled {background:#b8cfc4;cursor:not-allowed;}
+  .btn:hover:not([disabled]) {background:#144730;}
+  .progress-bar {height:5px;border-radius:2.5px;background:#e2f5e7;overflow:hidden;margin-bottom:14px;}
+  .progress-bar .fill {height:100%;background:linear-gradient(90deg,#277b4d 65%,#70d795 100%);width:0;transition:width 0.35s;}
+  .summary-box {background:#f8fffc;border:1.5px solid #277b4d33;border-radius:15px;padding:19px 13px;font-size:1.07rem;margin-top:7px;}
+  .summary-box strong {color:#277b4d;}
+  .summary-box ul {margin:9px 0; padding-left:19px;}
+  .summary-box li {margin-bottom:7px;}
+  .center-box {display:flex;justify-content:center;margin-top:20px;}
+  .status {margin-top:12px;font-size:.98rem;color:#445b45;}
+</style>
+</head>
+<body>
+<div class="logo-bar"><h1>CultivAI - Cuestionario de Fertilidad del Suelo</h1></div>
+<div class="test-container" id="testCard">
+  <div class="progress-bar"><div class="fill" id="prgFill"></div></div>
+  <form id="testForm" autocomplete="off">
+    <div id="questionArea"></div>
+    <div class="actions">
+      <button type="button" class="btn" id="backBtn" disabled>Atrás</button>
+      <button type="button" class="btn" id="nextBtn">Siguiente</button>
+      <button type="submit" class="btn" id="submitBtn" style="display:none;">Finalizar</button>
+    </div>
+  </form>
+</div>
+<div id="summarySec"></div>
+<div class="status" id="statusText"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+<script>
+const SUPABASE_URL = 'https://qjzjxcjcfjfammkyskpx.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFqemp4Y2pjZmpmYW1ta3lza3B4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk1NDk5MTMsImV4cCI6MjA3NTEyNTkxM30.dZUMwvYN_0ILfGDLK1ELneBQz-D-NCb_c6_hprESdDg';
+const STORAGE_KEY = 'cultivai_device_id';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+const preguntas = [
+  // Información básica del cultivo
+  { key: "superficie", texto: "Superficie de la parcela (m²):", tipo: "text", required: true },
+  { key: "cultivo", texto: "Tipo de cultivo actual o previsto:", tipo: "text", required: true },
+  { key: "cultivo_anterior", texto: "¿Qué cultivo tuviste la temporada anterior?", tipo: "text", required: false },
+  { key: "historial", texto: "Historial de cultivos en los últimos 3 años:", tipo: "textarea", required: false },
+  
+  // Condiciones del terreno
+  { key: "sol", texto: "Exposición solar de la parcela:", tipo: "radio",
+    opciones: ["Pleno sol", "Sombra parcial", "Sombra total"], required: true },
+  { key: "suelo", texto: "Tipo de suelo:", tipo: "radio+text",
+    opciones: ["Arenoso", "Arcilloso", "Limoso", "Franco", "Otro"], required: true },
+  
+  // Análisis y conocimiento del suelo
+  { key: "ultimo_analisis_suelo", texto: "¿Cuándo hiciste el último análisis de suelo?", tipo: "radio",
+    opciones: ["Hace menos de 1 año", "Hace 1-2 años", "Hace más de 2 años", "Nunca he hecho"], required: false },
+  { key: "ph_conocido", texto: "Si conoces el pH de tu suelo, indícalo (ejemplo: 6.5):", tipo: "text", required: false },
+  { key: "problemas_suelo", texto: "¿Has observado problemas en el suelo? (salinización, compactación, encharcamiento, etc.)", tipo: "textarea", required: false },
+  
+  // Fertilización y abonado
+  { key: "usa_fertilizantes", texto: "¿Usas fertilizantes en tu cultivo?", tipo: "radio",
+    opciones: ["Sí, regularmente", "Sí, ocasionalmente", "No"], required: true },
+  { key: "tipo_fertilizante", texto: "¿Qué tipos de fertilizantes usas? (marca, composición, etc.)", tipo: "textarea", required: false },
+  { key: "tipo_abono", texto: "¿Qué tipo de abono utilizas principalmente?", tipo: "radio",
+    opciones: ["Orgánico (estiércol, compost)", "Mineral/químico", "Ambos", "Ninguno"], required: false },
+  { key: "abono_descripcion", texto: "Describe el abono que usas (origen, frecuencia, cantidad aproximada):", tipo: "textarea", required: false },
+  { key: "enmiendas", texto: "¿Añades enmiendas al suelo? (cal, yeso, materia orgánica, etc.)", tipo: "textarea", required: false },
+  { key: "frecuencia_abonado", texto: "¿Cuántas veces al año fertilizas o abonas?", tipo: "text", required: false },
+  
+  // Prácticas agrícolas
+  { key: "rotacion_cultivos", texto: "¿Practicas rotación de cultivos?", tipo: "radio",
+    opciones: ["Sí, siempre", "A veces", "No"], required: false },
+  { key: "practicas_agricolas", texto: "¿Qué prácticas agrícolas realizas? (barbecho, cubierta vegetal, laboreo, etc.)", tipo: "textarea", required: false },
+  
+  // Riego
+  { key: "riego", texto: "¿Tienes sistemas de riego?", tipo: "radio",
+    opciones: ["Sí, automático", "Sí, manual", "No"], required: true },
+  { key: "frec_riego", texto: "Frecuencia de riego aproximada (días por semana):", tipo: "text", required: false },
+  
+  // Objetivos y observaciones
+  { key: "objetivo", texto: "Objetivo principal del cultivo:", tipo: "radio+text",
+    opciones: ["Producción máxima", "Calidad máxima", "Investigación / Experimentación", "Sostenibilidad / Orgánico", "Otro"], required: true },
+  { key: "deficiencias_observadas", texto: "¿Has observado deficiencias nutricionales en tus plantas? (hojas amarillas, crecimiento lento, etc.)", tipo: "textarea", required: false },
+  
+  // Energía y tecnología
+  { key: "fotovoltaica", texto: "¿Dispones de instalación fotovoltaica, energía solar, baterías o sistemas alternativos?",
+    tipo: "radio+text", opciones: ["Sí, fotovoltaica", "Sí, solar", "Sí, baterías", "No", "Otro"], required: false },
+  
+  // Características especiales
+  { key: "caract_esp", texto: "Describe características especiales de tu parcela (microclimas, pendientes, vientos, etc.):", tipo: "textarea", required: false },
+  { key: "problemas", texto: "¿Hay problemas frecuentes de plagas, enfermedades o deficiencias nutricionales?", tipo: "textarea", required: false }
+];
+
+const questionArea = document.getElementById('questionArea');
+const prgFill = document.getElementById('prgFill');
+const backBtn = document.getElementById('backBtn');
+const nextBtn = document.getElementById('nextBtn');
+const submitBtn = document.getElementById('submitBtn');
+const testForm = document.getElementById('testForm');
+const summarySec = document.getElementById('summarySec');
+const statusText = document.getElementById('statusText');
+
+let idx = 0;
+let responses = {};
+
+function getOrCreateDeviceId() {
+  try {
+    let d = localStorage.getItem(STORAGE_KEY);
+    if(!d) {
+      d = crypto.randomUUID?.() || ('dev-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
+      localStorage.setItem(STORAGE_KEY,d);
+    }
+    return d;
+  } catch(e) {
+    return 'dev-fallback-' + Date.now();
+  }
+}
+
+async function getAuthenticatedUserId() {
+  try {
+    const { data } = await db.auth.getSession();
+    const session = data?.session;
+    return session?.user?.id || null;
+  } catch(e){ return null; }
+}
+
+function renderPregunta(i) {
+  if(i < 0 || i >= preguntas.length) return;
+  const total = preguntas.length;
+  prgFill.style.width = `${((i+1)/total)*100}%`;
+  const p = preguntas[i];
+  let html = `<div class="preg-title">${p.texto}</div>`;
+  
+  if(p.tipo === "text") {
+    html += `<input type="text" class="input-open" id="inp${p.key}" name="${p.key}" value="${responses[p.key]||""}" ${p.required ? 'required' : ''} autocomplete="off">`;
+  }
+  if(p.tipo === "textarea") {
+    html += `<textarea id="inp${p.key}" name="${p.key}" ${p.required ? 'required' : ''}>${responses[p.key]||""}</textarea>`;
+  }
+  if(p.tipo === "radio") {
+    html += '<div class="choice-box">';
+    p.opciones.forEach((opt,j)=>{
+      html += `<label><input type="radio" name="${p.key}" value="${opt}" ${responses[p.key]==opt?"checked":""} ${p.required ? 'required' : ''}> ${opt}</label>`;
+    });
+    html += '</div>';
+  }
+  if(p.tipo === "radio+text") {
+    html += '<div class="choice-box">';
+    p.opciones.forEach((opt,j)=>{
+      if(opt === "Otro") {
+        html += `<label class="inline-choice"><input type="radio" name="${p.key}" value="Otro" ${responses[p.key]=="Otro"?"checked":""}> Otro:<input type="text" id="${p.key}_otro" placeholder="Especifica" value="${responses[p.key+'_otro']||""}"></label>`;
+      } else {
+        html += `<label><input type="radio" name="${p.key}" value="${opt}" ${responses[p.key]==opt?"checked":""} ${p.required ? 'required' : ''}> ${opt}</label>`;
+      }
+    });
+    html += '</div>';
+  }
+  
+  questionArea.innerHTML = html;
+  const autoFocus = questionArea.querySelector('input[type="text"], textarea');
+  if(autoFocus) autoFocus.focus();
+  
+  // Navegación con Enter
+  questionArea.querySelectorAll('input, textarea').forEach(el=>{
+    el.addEventListener('keydown', function(ev){
+      if(ev.key==='Enter' && (el.type === "text" || el.tagName === "TEXTAREA")){
+        ev.preventDefault();
+        guardarRespuesta();
+        if(idx < preguntas.length-1) { idx++; renderPregunta(idx);}
+        else { mostrarResumen(); }
+      }
+    });
+  });
+  
+  questionArea.querySelectorAll('input[type="radio"]').forEach(el=>{
+    el.addEventListener('keydown', function(ev){
+      if(ev.key==='Enter'){ ev.preventDefault(); nextBtn.click(); }
+    });
+  });
+  
+  backBtn.disabled = (i === 0);
+  nextBtn.style.display = (i < preguntas.length-1) ? 'inline-block' : 'none';
+  submitBtn.style.display = (i === preguntas.length-1) ? 'inline-block' : 'none';
+}
+
+function guardarRespuesta() {
+  const p = preguntas[idx];
+  if(p.tipo === "text" || p.tipo === "textarea") {
+    const el = document.querySelector(`#inp${p.key}`);
+    responses[p.key] = el.value.trim();
+  }
+  if(p.tipo === "radio") {
+    responses[p.key] = (testForm.elements[p.key]?testForm.elements[p.key].value:"");
+  }
+  if(p.tipo === "radio+text") {
+    responses[p.key] = (testForm.elements[p.key]?testForm.elements[p.key].value:"");
+    responses[p.key+'_otro'] = responses[p.key]=='Otro'
+      ? (document.getElementById(`${p.key}_otro`)?.value.trim() || "")
+      : "";
+  }
+}
+
+backBtn.onclick = () => {
+  guardarRespuesta();
+  if(idx>0){ idx--; renderPregunta(idx);}
+}
+
+nextBtn.onclick = () => {
+  guardarRespuesta();
+  if(idx<preguntas.length-1){
+    idx++;
+    renderPregunta(idx);
+  }
+}
+
+testForm.onsubmit = async e => {
+  e.preventDefault();
+  guardarRespuesta();
+  mostrarResumen();
+}
+
+function mostrarResumen(){
+  document.getElementById('testCard').style.display="none";
+  let html = `<div class="summary-box"><strong>Revisa tus respuestas antes de enviar:</strong><ul>`;
+  preguntas.forEach((p, i)=>{
+    let r = responses[p.key];
+    if(p.tipo === "radio+text" && responses[p.key] === "Otro") r += ': '+ (responses[p.key+'_otro']||"");
+    html += `<li><strong>${p.texto.replace(/<[^>]+>/g,"")}:</strong> ${r||"<em>No respondido</em>"}</li>`;
+  });
+  html += "</ul></div>";
+  html += `<div class="center-box">
+    <button class="btn" id="finalSendBtn">Enviar</button>
+  </div>`;
+  summarySec.innerHTML = html;
+  document.getElementById('finalSendBtn').onclick = enviarASupabase;
+}
+
+async function enviarASupabase(){
+  statusText.textContent = 'Enviando a CultivAI...';
+  
+  const deviceId = getOrCreateDeviceId();
+  const userId = await getAuthenticatedUserId();
+  
+  console.log('Device ID:', deviceId);
+  console.log('User ID:', userId);
+  
+  let vals = {
+    device_id: deviceId,
+    user_id: userId || null,
+    superficie: responses.superficie || null,
+    cultivo: responses.cultivo || null,
+    cultivo_anterior: responses.cultivo_anterior || null,
+    historial: responses.historial || null,
+    sol: responses.sol || null,
+    suelo: responses.suelo || null,
+    suelo_otro: responses.suelo_otro || null,
+    ultimo_analisis_suelo: responses.ultimo_analisis_suelo || null,
+    ph_conocido: responses.ph_conocido ? parseFloat(responses.ph_conocido) : null,
+    problemas_suelo: responses.problemas_suelo || null,
+    usa_fertilizantes: responses.usa_fertilizantes || null,
+    tipo_fertilizante: responses.tipo_fertilizante || null,
+    tipo_abono: responses.tipo_abono || null,
+    abono_descripcion: responses.abono_descripcion || null,
+    enmiendas: responses.enmiendas || null,
+    frecuencia_abonado: responses.frecuencia_abonado ? parseFloat(responses.frecuencia_abonado) : null,
+    rotacion_cultivos: responses.rotacion_cultivos || null,
+    practicas_agricolas: responses.practicas_agricolas || null,
+    riego: responses.riego || null,
+    frec_riego: responses.frec_riego ? parseFloat(responses.frec_riego) : null,
+    objetivo: responses.objetivo || null,
+    objetivo_otro: responses.objetivo_otro || null,
+    deficiencias_observadas: responses.deficiencias_observadas || null,
+    fotovoltaica: responses.fotovoltaica || null,
+    fotovoltaica_otro: responses.fotovoltaica_otro || null,
+    caracteristicas: responses.caract_esp || null,
+    problemas: responses.problemas || null
+  };
+  
+  try {
+    const result = await db.from('cultivo_test_respuestas').insert([vals]);
+    if(result.error) throw result.error;
+    statusText.textContent = '¡Respuestas enviadas correctamente!';
+    setTimeout(()=>{
+      window.location.href = 'ia.html';
+    }, 1500);
+  } catch(e){
+    statusText.textContent = 'Error guardando respuestas: ' + (e.message || e);
+    console.error('Error completo:', e);
+  }
+}
+
+renderPregunta(idx);
+</script>
+</body>
+</html>
