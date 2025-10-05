@@ -1,0 +1,96 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.cultivo_informes_ai (
+  id integer NOT NULL DEFAULT nextval('cultivo_informes_ai_id_seq'::regclass),
+  respuesta_id integer,
+  device_id character varying,
+  user_id character varying,
+  zona character varying,
+  fecha timestamp with time zone DEFAULT now(),
+  resumen_json jsonb,
+  texto_resumido text,
+  recomendaciones text,
+  riesgos text,
+  clima_api_json jsonb,
+  govdata_json jsonb,
+  cultivo_recomendado text,
+  rotacion_recomendada text,
+  acciones_adicionales text,
+  informe_tecnico text,
+  informe_agricultor text,
+  CONSTRAINT cultivo_informes_ai_pkey PRIMARY KEY (id),
+  CONSTRAINT cultivo_informes_ai_respuesta_id_fkey FOREIGN KEY (respuesta_id) REFERENCES public.cultivo_test_respuestas(id)
+);
+CREATE TABLE public.cultivo_test_respuestas (
+  id integer NOT NULL DEFAULT nextval('cultivo_test_respuestas_id_seq'::regclass),
+  user_id character varying,
+  superficie numeric,
+  cultivo text,
+  historial text,
+  sol character varying,
+  suelo character varying,
+  suelo_otro text,
+  riego character varying,
+  frec_riego numeric,
+  objetivo character varying,
+  objetivo_otro text,
+  caracteristicas text,
+  problemas text,
+  created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+  fotovoltaica text,
+  fotovoltaica_otro text,
+  caract_esp text,
+  ultimo_analisis_suelo character varying,
+  usa_fertilizantes character varying,
+  tipo_fertilizante text,
+  tipo_abono character varying,
+  abono_descripcion text,
+  enmiendas text,
+  frecuencia_abonado numeric,
+  practicas_agricolas text,
+  problemas_suelo text,
+  cultivo_anterior text,
+  rotacion_cultivos character varying,
+  ph_conocido numeric,
+  deficiencias_observadas text,
+  device_id character varying,
+  CONSTRAINT cultivo_test_respuestas_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.device_sessions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  device_id text NOT NULL UNIQUE,
+  created_at timestamp with time zone DEFAULT now(),
+  last_seen timestamp with time zone DEFAULT now(),
+  user_id uuid,
+  completed boolean DEFAULT false,
+  metadata jsonb DEFAULT '{}'::jsonb,
+  CONSTRAINT device_sessions_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.ia_chats (
+  id integer NOT NULL DEFAULT nextval('ia_chats_id_seq'::regclass),
+  device_id character varying,
+  user_id character varying,
+  created_at timestamp without time zone DEFAULT now(),
+  last_message_at timestamp without time zone DEFAULT now(),
+  messages jsonb,
+  CONSTRAINT ia_chats_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.sensor_readings (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  device_id text,
+  user_id uuid,
+  sensor_name text NOT NULL,
+  ph numeric,
+  nitrogen numeric,
+  phosphorus numeric,
+  potassium numeric,
+  organic_matter numeric,
+  salts_ec numeric,
+  temperature_c numeric,
+  humidity_pct numeric,
+  moisture_vwc numeric,
+  notes text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT sensor_readings_pkey PRIMARY KEY (id)
+);
