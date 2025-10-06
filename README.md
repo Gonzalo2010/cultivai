@@ -14,6 +14,6 @@ CultivAI utiliza la API de **DeepSeek** para procesar datos y generar interpreta
 Antes de lanzar el proyecto, asegúrate de:
 
 - Tener una cuenta activa en [DeepSeek](https://deepseek.ai)
-- Configurar tu **API Key** en las variables de entorno del servidor:
-  ```bash
-  export DEEPSEEK_API_KEY="tu_api_key_aquí"
+- Configurar tu **API Key de Deepseek** en el codigo
+- Tener una cuenta activa en [Supabase](https://supabase.com)
+- Configurar tu **API Key de Supabase** en el codigo
